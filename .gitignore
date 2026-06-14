@@ -1,0 +1,14 @@
+.env
+.env.example
+credentials.json
+token.pickle
+menu.json
+seen_events.json
+seen_email_events.json
+watchlist.json
+profile.txt
+venues.json
+venv/
+__pycache__/
+*.pyc
+.DS_Store
