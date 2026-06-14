@@ -1,10 +1,14 @@
-import os
+import base64
 import datetime
+import json
+import os
+import pickle
+import tempfile
+
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import pickle
 
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
@@ -14,23 +18,58 @@ TOKEN_FILE = "token.pickle"
 
 
 def get_calendar_service():
+    creds = _load_creds()
+    return build("calendar", "v3", credentials=creds)
+
+
+def get_gmail_creds():
+    return _load_creds()
+
+
+def _load_creds():
     creds = None
-    if os.path.exists(TOKEN_FILE):
+
+    # Try env var first (Railway), then local file (Mac)
+    token_b64 = os.getenv("GOOGLE_TOKEN_B64")
+    if token_b64:
+        creds = pickle.loads(base64.b64decode(token_b64))
+    elif os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, "rb") as f:
             creds = pickle.load(f)
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json"), SCOPES
-            )
-            creds = flow.run_local_server(port=0)
+    if creds and creds.valid:
+        return creds
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        _save_creds(creds)
+        return creds
+
+    # Fall back to interactive OAuth (only works locally)
+    creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if creds_json:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write(creds_json)
+            creds_file = f.name
+    else:
+        creds_file = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+
+    flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
+    creds = flow.run_local_server(port=0)
+    _save_creds(creds)
+    return creds
+
+
+def _save_creds(creds):
+    # Save locally if possible
+    try:
         with open(TOKEN_FILE, "wb") as f:
             pickle.dump(creds, f)
-
-    return build("calendar", "v3", credentials=creds)
+    except Exception:
+        pass
+    # Print the base64 token so it can be copied to Railway env vars
+    b64 = base64.b64encode(pickle.dumps(creds)).decode()
+    print(f"\n[INFO] Updated GOOGLE_TOKEN_B64 (copy this to Railway):\n{b64}\n")
 
 
 def get_week_events(service, start_date: datetime.date) -> list[dict]:

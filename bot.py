@@ -198,7 +198,7 @@ async def run_daily_nudge(context: ContextTypes.DEFAULT_TYPE) -> None:
         f"*{datetime.date.today().strftime('%A')}* — {free_summary}\n"
         f"{event_nudge}\n"
         f"*This week's menu:*\n{menu_text}\n\n"
-        "What are you doing today? Reply with the number, name, or *skip*."
+        "What are you doing this evening? Reply with the number, name, or *skip*."
     )
     await _send(context, msg)
     _state[CHAT_ID] = AWAITING_DAILY_PICK
@@ -229,7 +229,7 @@ async def poll_new_events(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Also scan newsletters
     try:
-        creds = calendar_client.get_calendar_service()._http.credentials
+        creds = calendar_client.get_gmail_creds()
         findings = gmail_reader.check_newsletters(creds)
         if findings:
             msg = gmail_reader.format_newsletter_findings(findings)
@@ -478,11 +478,11 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 def schedule_jobs(app: Application) -> None:
     jq = app.job_queue
 
-    # Weekly menu: Sunday 18:00
-    jq.run_daily(run_weekly, time=datetime.time(18, 0), days=(6,))
+    # Weekly menu: Sunday 18:00 (temporarily set to 20:33 for testing)
+    jq.run_daily(run_weekly, time=datetime.time(20, 33), days=(6,))
 
-    # Daily nudge: 12:00 every day
-    jq.run_daily(run_daily_nudge, time=datetime.time(12, 0))
+    # Daily nudge: 13:00 every day
+    jq.run_daily(run_daily_nudge, time=datetime.time(13, 0))
 
     # Event poller: every 6 hours (alerts for newly announced events)
     jq.run_repeating(poll_new_events, interval=60 * 60 * 6, first=30)
