@@ -478,8 +478,8 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 def schedule_jobs(app: Application) -> None:
     jq = app.job_queue
 
-    # Weekly menu: Sunday 18:00 (temporarily set to 20:33 for testing)
-    jq.run_daily(run_weekly, time=datetime.time(20, 33), days=(6,))
+    # Weekly menu: Sunday 18:00 (temporarily set to 20:40 for testing)
+    jq.run_daily(run_weekly, time=datetime.time(20, 40), days=(6,))
 
     # Daily nudge: 13:00 every day
     jq.run_daily(run_daily_nudge, time=datetime.time(13, 0))
