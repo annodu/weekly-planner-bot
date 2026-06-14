@@ -45,8 +45,14 @@ def _load_creds():
         _save_creds(creds)
         return creds
 
-    # Fall back to interactive OAuth (only works locally)
+    # On Railway there's no browser for interactive OAuth — raise clearly
     creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if not creds_json and not os.path.exists(os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")):
+        raise RuntimeError(
+            "No valid Google token and no credentials file found. "
+            "Run setup_google_auth.py locally and update GOOGLE_TOKEN_B64 in Railway."
+        )
+
     if creds_json:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(creds_json)
