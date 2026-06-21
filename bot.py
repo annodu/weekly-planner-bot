@@ -26,9 +26,11 @@ from telegram.ext import (
     filters,
 )
 
+import ai_handler
 import calendar_client
 import events_search
 import gmail_reader
+import lists_store
 import menu_store
 
 WATCHLIST_FILE = "watchlist.json"
@@ -105,6 +107,10 @@ CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 AWAITING_WEEKLY_CONFIRM = "weekly_confirm"
 AWAITING_DAILY_PICK = "daily"
 _state: dict[int, str] = {}
+
+# Per-chat short conversation history for Claude (last N turns)
+_history: dict[int, list[dict]] = {}
+MAX_HISTORY = 10
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -340,6 +346,18 @@ async def cmd_watchlist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
+async def cmd_todos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_ann(update): return
+    text = lists_store.format_todos()
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_shopping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_ann(update): return
+    text = lists_store.format_shopping()
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
 async def cmd_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_ann(update): return
     item = " ".join(context.args).strip()
@@ -374,9 +392,8 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     text = update.message.text.strip()
-    state = _state.get(CHAT_ID)
 
-    # Detect event links (Luma or Eventbrite) anywhere in the message
+    # Detect event links (Luma or Eventbrite) — handle before AI so the URL isn't mangled
     event_url = extract_event_url(text)
     if event_url:
         event_name = fetch_event_name(event_url)
@@ -393,84 +410,25 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    # Handle add/remove inline (works in any state)
-    lower = text.lower()
-    if lower.startswith("add "):
-        item = text[4:].strip()
-        menu = menu_store.load_menu()
-        cat = _infer_category(item)
-        menu = menu_store.add_item(item, menu, cat)
-        menu_text = menu_store.format_full_menu(menu)
-        await update.message.reply_text(
-            f"✅ Added: _{item}_\n\n*Menu:*\n{menu_text}",
-            parse_mode="Markdown",
-        )
-        return
+    # Route everything else through Claude
+    history = _history.get(CHAT_ID, [])
+    try:
+        reply = await ai_handler.handle_message(text, history)
+    except Exception as e:
+        log.error("AI handler error: %s", e)
+        reply = "Sorry, I hit an error. Try again or use /menu, /todos, /shopping."
 
-    if lower.startswith("remove "):
-        item = text[7:].strip()
-        menu = menu_store.load_menu()
-        menu, found = menu_store.remove_item(item, menu)
-        if found:
-            menu_text = menu_store.format_full_menu(menu)
-            await update.message.reply_text(
-                f"🗑️ Removed: _{item}_\n\n*Menu:*\n{menu_text}",
-                parse_mode="Markdown",
-            )
-        else:
-            await update.message.reply_text(f"Couldn't find _{item}_ on the menu.", parse_mode="Markdown")
-        return
+    # Update rolling history
+    history = history + [
+        {"role": "user", "content": text},
+        {"role": "assistant", "content": reply},
+    ]
+    _history[CHAT_ID] = history[-MAX_HISTORY:]
 
-    if state == AWAITING_WEEKLY_CONFIRM:
-        menu = menu_store.load_menu()
-        if lower not in ("looks good", "ok", "good", "fine", "👍", "lgtm"):
-            menu = menu_store.update_menu_from_reply(text, menu)
-        pending = menu_store.pending_items(menu)
-        menu_text = menu_store.format_full_menu(menu)
-        await update.message.reply_text(
-            f"✅ Menu set — {len(pending)} things this week:\n\n{menu_text}\n\n"
-            "I'll nudge you daily at noon. Use /add or /remove anytime.",
-            parse_mode="Markdown",
-        )
-        _state.pop(CHAT_ID, None)
+    # Clear any pending state — Claude handles context now
+    _state.pop(CHAT_ID, None)
 
-    elif state == AWAITING_DAILY_PICK:
-        if lower == "skip":
-            await update.message.reply_text("No worries, catch you tomorrow.")
-            _state.pop(CHAT_ID, None)
-            return
-
-        menu = menu_store.load_menu()
-        pending = menu_store.pending_items(menu)
-
-        picked = None
-        if text.isdigit():
-            idx = int(text) - 1
-            if 0 <= idx < len(pending):
-                picked = pending[idx]
-        else:
-            matches = [p for p in pending if lower in p.lower()]
-            if matches:
-                picked = matches[0]
-
-        if picked:
-            menu_store.mark_done(picked, menu)
-            venue_line = f"\n{suggest_venue()}" if is_work_task(picked) else ""
-            await update.message.reply_text(
-                f"{menu_store.emoji_for(picked)} Doing: *{picked}*{venue_line}\n\nMark it done with /done {picked}",
-                parse_mode="Markdown",
-            )
-        else:
-            await update.message.reply_text(
-                "Didn't recognise that — try the number or part of the name. Or say *skip*.",
-                parse_mode="Markdown",
-            )
-        _state.pop(CHAT_ID, None)
-
-    else:
-        await update.message.reply_text(
-            "Try: /weekly, /nudge, /menu, /add <item>, /remove <item>, /done <item>"
-        )
+    await update.message.reply_text(reply, parse_mode="Markdown")
 
 
 # ── scheduled jobs ────────────────────────────────────────────────────────────
@@ -499,6 +457,8 @@ def main() -> None:
     app.add_handler(CommandHandler("add", cmd_add))
     app.add_handler(CommandHandler("remove", cmd_remove))
     app.add_handler(CommandHandler("done", cmd_done))
+    app.add_handler(CommandHandler("todos", cmd_todos))
+    app.add_handler(CommandHandler("shopping", cmd_shopping))
     app.add_handler(CommandHandler("watchlist", cmd_watchlist))
     app.add_handler(CommandHandler("spot", cmd_spot))
     app.add_handler(CommandHandler("spots", cmd_spots))

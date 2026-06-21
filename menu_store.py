@@ -174,10 +174,11 @@ def update_menu_from_reply(reply: str, menu: dict) -> dict:
 
 
 def mark_done(item: str, menu: dict) -> dict:
+    lower = item.lower()
     for cat in ("work", "social", "fitness", "side_projects"):
-        items_lower = [x.lower() for x in menu[cat]]
-        if item.lower() in items_lower:
-            idx = items_lower.index(item.lower())
+        # substring match so "yoga" hits "Yoga Tuesday"
+        matches = [i for i, x in enumerate(menu[cat]) if lower in x.lower()]
+        for idx in reversed(matches):
             actual = menu[cat].pop(idx)
             if actual not in menu["done"]:
                 menu["done"].append(actual)
