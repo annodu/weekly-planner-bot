@@ -15,9 +15,8 @@ _client = None
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPEN_AI_KEY") or os.environ.get("OPENAI_KEY")
-        if not api_key:
-            raise RuntimeError("No OpenAI API key found in environment variables")
+        api_key = os.environ.get("OPENAI_API_KEY")
+        log.info("OPENAI_API_KEY present: %s", bool(api_key))
         _client = OpenAI(api_key=api_key)
     return _client
 
