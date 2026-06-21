@@ -415,8 +415,8 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     try:
         reply = await ai_handler.handle_message(text, history)
     except Exception as e:
-        log.error("AI handler error: %s", e)
-        reply = "Sorry, I hit an error. Try again or use /menu, /todos, /shopping."
+        log.error("AI handler error: %s", e, exc_info=True)
+        reply = f"Error: {e}"
 
     # Update rolling history
     history = history + [
