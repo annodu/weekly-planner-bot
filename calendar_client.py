@@ -83,15 +83,27 @@ def get_week_events(service, start_date: datetime.date) -> list[dict]:
     time_min = datetime.datetime.combine(start_date, datetime.time.min).isoformat() + "Z"
     time_max = datetime.datetime.combine(end_date, datetime.time.min).isoformat() + "Z"
 
-    result = service.events().list(
-        calendarId="primary",
-        timeMin=time_min,
-        timeMax=time_max,
-        singleEvents=True,
-        orderBy="startTime",
-    ).execute()
+    calendars = service.calendarList().list().execute().get("items", [])
+    all_events = []
+    seen_ids = set()
+    for cal in calendars:
+        try:
+            result = service.events().list(
+                calendarId=cal["id"],
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,
+                orderBy="startTime",
+            ).execute()
+            for e in result.get("items", []):
+                if e["id"] not in seen_ids:
+                    seen_ids.add(e["id"])
+                    all_events.append(e)
+        except Exception:
+            pass
 
-    return result.get("items", [])
+    all_events.sort(key=lambda e: e["start"].get("dateTime", e["start"].get("date", "")))
+    return all_events
 
 
 def get_today_free_slots(service) -> str:
