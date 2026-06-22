@@ -3,8 +3,9 @@ import json
 import os
 from datetime import date
 
-TODO_FILE = "todo_list.json"
-SHOPPING_FILE = "shopping_list.json"
+_DATA_DIR = os.getenv("DATA_DIR", ".")
+TODO_FILE = os.path.join(_DATA_DIR, "todo_list.json")
+SHOPPING_FILE = os.path.join(_DATA_DIR, "shopping_list.json")
 
 
 def _load(path: str) -> list[dict]:

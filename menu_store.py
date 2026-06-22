@@ -2,8 +2,9 @@ import json
 import datetime
 import os
 
-MENU_FILE = os.getenv("MENU_FILE", "menu.json")
-SEEN_EVENTS_FILE = "seen_events.json"
+_DATA_DIR = os.getenv("DATA_DIR", ".")
+MENU_FILE = os.path.join(_DATA_DIR, os.getenv("MENU_FILE", "menu.json"))
+SEEN_EVENTS_FILE = os.path.join(_DATA_DIR, "seen_events.json")
 
 EMOJI_MAP = [
     ("anook", "💻"),
