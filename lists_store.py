@@ -63,20 +63,29 @@ def complete_todo(text: str) -> bool:
 
 def format_todos() -> str:
     items = load_todos()
-    if not items:
-        return "No to-dos yet."
     pending = [i for i in items if not i["done"]]
     done = [i for i in items if i["done"]]
-    lines = []
-    if pending:
-        lines.append("*Pending:*")
-        for i, item in enumerate(pending, 1):
-            cat = f" [{item['category']}]" if item.get("category") else ""
-            lines.append(f"{i}. {item['text']}{cat}")
+
+    if not pending and not done:
+        return "No to-dos yet."
+
+    cat_map: dict[str, list[str]] = {}
+    for item in pending:
+        cat = (item.get("category") or "Other").strip().title() or "Other"
+        cat_map.setdefault(cat, []).append(item["text"])
+
+    lines = ["*Here's your to-do list:*\n"]
+    for cat in sorted(cat_map):
+        lines.append(f"*{cat}:*")
+        for text in cat_map[cat]:
+            lines.append(f"  • {text}")
+        lines.append("")
+
     if done:
-        lines.append("\n*Done:*")
+        lines.append("*Done:*")
         for item in done:
-            lines.append(f"✅ {item['text']}")
+            lines.append(f"  ✅ {item['text']}")
+
     return "\n".join(lines)
 
 
@@ -132,18 +141,27 @@ def clear_bought() -> int:
 
 def format_shopping() -> str:
     items = load_shopping()
-    if not items:
-        return "Shopping list is empty."
     needed = [i for i in items if not i["bought"]]
     bought = [i for i in items if i["bought"]]
-    lines = []
-    if needed:
-        lines.append("*To buy:*")
-        for i, item in enumerate(needed, 1):
-            cat = f" [{item['category']}]" if item.get("category") else ""
-            lines.append(f"{i}. {item['text']}{cat}")
+
+    if not needed and not bought:
+        return "Shopping list is empty."
+
+    cat_map: dict[str, list[str]] = {}
+    for item in needed:
+        cat = (item.get("category") or "Other").strip().title() or "Other"
+        cat_map.setdefault(cat, []).append(item["text"])
+
+    lines = ["*Here's your shopping list:*\n"]
+    for cat in sorted(cat_map):
+        lines.append(f"*{cat}:*")
+        for text in cat_map[cat]:
+            lines.append(f"  • {text}")
+        lines.append("")
+
     if bought:
-        lines.append("\n*Got it:*")
+        lines.append("*Got it:*")
         for item in bought:
-            lines.append(f"✅ {item['text']}")
+            lines.append(f"  ✅ {item['text']}")
+
     return "\n".join(lines)

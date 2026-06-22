@@ -39,7 +39,7 @@ def _make_tool(name: str, description: str, properties: dict, required: list = N
 TOOLS = [
     _make_tool("add_todo", "Add one or more items to the to-do list.", {
         "items": {"type": "array", "items": {"type": "string"}, "description": "List of to-do items to add."},
-        "category": {"type": "string", "description": "Optional category, e.g. 'errands', 'work', 'health'."},
+        "category": {"type": "string", "description": "Category, e.g. Health, Financial, Errands, Social, Tech — or any other that fits."},
     }, ["items"]),
     _make_tool("remove_todo", "Remove a to-do item by name (partial match).", {
         "text": {"type": "string"},
@@ -50,7 +50,7 @@ TOOLS = [
     _make_tool("show_todos", "Retrieve the current to-do list.", {}),
     _make_tool("add_shopping", "Add one or more items to the shopping list.", {
         "items": {"type": "array", "items": {"type": "string"}, "description": "List of things to buy."},
-        "category": {"type": "string", "description": "Optional category, e.g. 'groceries', 'household'."},
+        "category": {"type": "string", "description": "Category, e.g. Groceries, Clothing, Beauty, Gifts, Gadgets, Footwear, Fashion, Home, Household — or any other that fits."},
     }, ["items"]),
     _make_tool("remove_shopping", "Remove an item from the shopping list by name (partial match).", {
         "text": {"type": "string"},
